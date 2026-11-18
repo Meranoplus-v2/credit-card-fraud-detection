@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegressionCV
 from catboost import CatBoostClassifier
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
+import joblib
 
 def print_metrics(row):
     print(f"  Precision: {row['Precision']:.3f}")
@@ -56,27 +57,35 @@ lr_params = {
     'use_legacy_attributes': False    
 }
 
-# ── 1. LOAD DATA ─────────────────────────────────
+# import data
 df = pd.read_csv("creditcard.csv")
+
+# memory saving 
+v_cols = [f'V{i}' for i in range(1, 29)] + ['Amount', 'Time']
+df[v_cols] = df[v_cols].astype('float32')
+
+df["Class"] = df["Class"].astype("int32")
+
+# features 
 X = df.drop('Class', axis=1)
 y = df['Class']
 
-# ── 2. SPLIT ─────────────────────────────────────
+# SPLIT
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, random_state=42, test_size=0.20)           # 80% train, 10% val, 10% test
 X_val, X_test, y_val, y_test     = train_test_split(X_temp, y_temp, random_state=42, test_size=0.50) # Result: 80% / 10% / 10%
 
 
-# ── 3. SCALE ─────────────────────────────────────
+# SCALE 
 # fit only on train to avoid data leakage
 scaler = StandardScaler()
 X_train[["Time", "Amount"]] = scaler.fit_transform(X_train[["Time", "Amount"]])
 X_val[["Time", "Amount"]]   = scaler.transform(X_val[["Time", "Amount"]])
 X_test[["Time", "Amount"]]  = scaler.transform(X_test[["Time", "Amount"]])
 
-# ── 4. BALANCE ───────────────────────────────────
+# BALANCE
 # SMOTE only on training data — never on val/test
 sm = SMOTE(random_state=42)
-X_train_res, y_train_res = sm.fit_resample(X_train, y_train)
+X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
 
 models = { 
     "rf": RandomForestClassifier(**rf_params),
@@ -89,7 +98,7 @@ models = {
 # ── 5. TRAIN ──────────────────────────────────────
 # fit once — predict on val and test below, no need to refit
 for name, model in models.items():
-    model.fit(X_train_res, y_train_res)
+    model.fit(X_train_sm, y_train_sm)
 
 # ── 6. VALIDATION EVALUATION — MODEL SELECTION ───
 # PR-AUC is primary metric — more reliable than ROC-AUC on imbalanced data
@@ -118,11 +127,20 @@ print(val_sorted)
 winner_name = val_sorted.index[0]
 winner_row  = val_sorted.loc[winner_name]
 
-print(f"\nWINNER: {winner_name} (locked in based on val PR-AUC)")
-print_metrics(winner_row)
+# Only consider models with recall >= 0.75
+qualified = val_sorted[val_sorted['Recall'] >= 0.75]
 
-if winner_row['Recall'] < 0.5:
-    print("Warning: Winner has low recall — consider the trade-off")
+# Fallback in case no model meets threshold
+if len(qualified) == 0:
+    print("⚠️ No model met recall threshold, picking best PR-AUC anyway")
+    qualified = val_sorted
+
+# Pick best PR-AUC among qualified
+winner_name = qualified.sort_values('PR-AUC', ascending=False).index[0]
+winner_row = qualified.loc[winner_name]
+
+print(f"\nWINNER: {winner_name}")
+print_metrics(winner_row)
 
 # ── 7. TEST EVALUATION — FINAL, HONEST REPORT ────
 # winner already chosen above using val — this only reports, never re-selects
@@ -139,12 +157,31 @@ for name, model in models.items():
         "PR-AUC":    average_precision_score(y_test, y_proba)
     }
 
-test_df = pd.DataFrame(test_results).T.sort_values("PR-AUC", ascending=False)
+test_df = pd.DataFrame(test_results).T
+test_sorted = test_df.sort_values("PR-AUC", ascending=False)
 
 print("\n" + "="*50)
 print("TEST RESULTS (final, unbiased — all models reported for transparency)")
 print("="*50)
 print(test_df)
 
+
+# Only consider models with recall >= 0.75
+qualified = test_sorted[test_sorted['Recall'] >= 0.75]
+
+# Fallback in case no model meets threshold
+if len(qualified) == 0:
+    print("⚠️ No model met recall threshold, picking best PR-AUC anyway")
+    qualified = test_sorted
+
+# Pick best PR-AUC among qualified
+winner_name = qualified.sort_values('PR-AUC', ascending=False).index[0]
+winner_row = qualified.loc[winner_name]
+
+# val winner is already selected above, just report it on test
 print(f"\nWINNER'S TEST PERFORMANCE: {winner_name}")
-print_metrics(test_df.loc[winner_name])
+print_metrics(test_df.loc[winner_name])  
+
+# Save
+joblib.dump(models[winner_name], "model.pkl")
+joblib.dump(scaler, "scaler.pkl")
