@@ -1,0 +1,18 @@
+2026-11-02 13:51:09,073 | INFO | Accuracy checked - Brier score: 0.0002
+2026-11-02 13:53:57,464 | INFO | Server started
+2026-11-02 13:53:57,465 | INFO | Model loaded successfully
+2026-11-02 13:54:06,592 | INFO | Server started
+2026-11-02 13:54:06,592 | INFO | Model loaded successfully
+2026-11-02 13:54:10,194 | INFO | Server started
+2026-11-02 13:54:10,194 | INFO | Model loaded successfully
+2026-11-02 13:55:14,886 | INFO | Server started
+2026-11-02 13:55:14,886 | INFO | Model loaded successfully
+2026-11-02 14:30:30,518 | INFO | Accuracy checked - Brier score: 0.0001
+Brier Score: 0.0001
+Observed Fraud Rate: 0.2173
+
+Drift Detected: False
+Percent Change: -17.73%
+PS C:\Users\User\Desktop\git_push> 
+2026-11-03 20:43:59,656 | INFO | Server started
+2026-11-03 20:43:59,656 | INFO | Model loaded successfully
