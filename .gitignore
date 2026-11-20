@@ -1,4 +1,4 @@
-﻿# Data files
+# Data files
 *.csv
 *.json
 *.parquet
@@ -34,6 +34,7 @@ env/
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
 # OS junk
 .DS_Store
@@ -41,3 +42,12 @@ Thumbs.db
 
 # Temp files
 tempCodeRunnerFile.py
+
+# Logs
+*.log
+
+# Docker
+.dockerignore
+
+# FastAPI / uvicorn
+*.pid
