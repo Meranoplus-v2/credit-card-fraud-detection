@@ -26,7 +26,7 @@ Primary metric used: **PR-AUC** (Precision-Recall AUC), since ROC-AUC is overly 
 | LightGBM       | 0.77      | 0.84   | 0.80 | 0.79   |
 | Logistic Reg   | 0.05      | 0.91   | 0.10 | 0.77   |
 
-**Winner: XGBoost**, selected on the validation set (PR-AUC 0.904, narrowly ahead of Random Forest's 0.903). On the held-out test set, Random Forest edges ahead instead (0.867 vs 0.865) — but the two models are statistically tied; which one ranks first depends on the specific data split. Both are reported above for transparency, with the original val-based selection (XGBoost) kept as the locked-in answer rather than re-picking based on test.
+**Winner: Random Forest**, selected on the validation set (PR-AUC 0.903). On the held-out test set it holds up well (PR-AUC 0.867), with XGBoost essentially tied at 0.866 — the two models swap first place by margins of 0.001–0.002 depending on the split. Both are reported above for transparency.
 
 ## Key Findings
 
@@ -38,7 +38,7 @@ Primary metric used: **PR-AUC** (Precision-Recall AUC), since ROC-AUC is overly 
 
 ## Stack
 
-Python, Scikit-learn, XGBoost, LightGBM, CatBoost, Imbalanced-learn
+Python, Scikit-learn, XGBoost, LightGBM, CatBoost, Imbalanced-learn, FastAPI, Uvicorn, Pydantic
 
 ## Dataset
 
@@ -48,14 +48,38 @@ This repo does not include the dataset due to file size.
 
 **Setup:**
 1. Download `creditcard.csv` from the Kaggle link above (requires a free Kaggle account).
-2. Place `creditcard.csv` in the same folder as `fraud_detection.py`.
+2. Place `creditcard.csv` in the same folder as the project files.
 3. Install dependencies:
    ```
-   pip install pandas scikit-learn imbalanced-learn catboost xgboost lightgbm
+   pip install pandas numpy scikit-learn imbalanced-learn catboost xgboost lightgbm joblib fastapi uvicorn pydantic
    ```
-4. Run the script:
+4. Train the model — this saves `model.pkl` and `scaler.pkl`:
    ```
    python fraud_detection.py
    ```
+   Validation results, the selected winner, and final test results are printed to the console.
 
-The script will print validation results, the selected winning model, and final test results to the console.
+5. Start the API:
+   ```
+   uvicorn main:app --reload
+   ```
+
+## API
+
+The API is served by FastAPI. Once running, interactive docs are available at `http://localhost:8000/docs`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Health check |
+| GET | `/health` | Health check |
+| POST | `/predict` | Run fraud prediction on a transaction |
+| POST | `/report/{record_id}` | Report whether fraud actually occurred |
+| GET | `/accuracy` | Brier score across all resolved predictions |
+| GET | `/drift` | Compare recent vs previous Brier score to detect model degradation |
+
+Predictions are logged to `predictions.json`. Once outcomes are reported via `/report`, accuracy and drift endpoints become meaningful.
+
+To populate enough data for drift detection (requires 400 resolved predictions), run the smoke test:
+```
+python smoke_test.py
+```
