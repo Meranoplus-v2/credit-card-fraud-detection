@@ -17,7 +17,7 @@ def load_predictions():
     try:
         with open(PREDICTIONS_FILE, "r") as f:
             return json.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
@@ -66,7 +66,7 @@ def log_prediction(input_data: dict, predicted_risk: float, model_used: str) -> 
 
 
 # ---------------------------------------------------------------------------
-# JOB 2: REPORT (what actually happened: accident = 1, no accident = 0)
+# JOB 2: REPORT (what actually happened: fraud = 1, no fraud = 0)
 # ---------------------------------------------------------------------------
 def report_outcome(record_id: str, occurred: bool) -> str:
     """
@@ -96,7 +96,7 @@ def check_accuracy() -> dict:
     Predictions are risk scores in [0, 1] and outcomes are 0/1, so the main
     metric is the Brier score (lower is better). For reference, always
     predicting the observed base rate scores base_rate * (1 - base_rate).
-    Don't compare these numbers to the training MAE: the labels are different.
+    Don't compare these numbers to the training PR-AUC: the metrics are different.
     """
     predictions = load_predictions()
     resolved = _resolved(predictions)
@@ -112,7 +112,7 @@ def check_accuracy() -> dict:
     if not resolved:
         result.update(
             brier_score=None,
-            observed_accident_rate=None,
+            observed_fraud_rate=None,
             mean_predicted_risk=None,
             message="No reported outcomes yet - can't compute accuracy.",
         )
@@ -122,7 +122,7 @@ def check_accuracy() -> dict:
     result.update(
         brier_score=round(_brier(resolved), 4),
         baseline_brier=round(base_rate * (1 - base_rate), 4),
-        observed_accident_rate=round(base_rate, 4),
+        observed_fraud_rate=round(base_rate, 4),
         # If these two are far apart, the model is miscalibrated.
         mean_predicted_risk=round(
             sum(r["predicted"] for r in resolved) / len(resolved), 4
