@@ -8,22 +8,18 @@ from feedback import log_prediction, report_outcome, check_accuracy, check_for_d
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s | %(levelname)s | %(message)s",
-                    handlers=[logging.FileHandler("a_main.log", mode="a"), # default is apppend/ w = overwrites
-                    logging.StreamHandler()]), # displays what's happening in terminal, without only saves
+                    handlers=[logging.FileHandler("a_main.log", mode="a"),
+                    logging.StreamHandler()])
 
+model  = joblib.load("model.pkl")
+scaler = joblib.load("scaler.pkl")
 
-# when the server starts
 logger = logging.getLogger(__name__)
 logger.info("Server started")
 logger.info("Model loaded successfully")
 
-# ── LOAD MODEL & SCALER ───────────────────────────
-model  = joblib.load("model.pkl")
-scaler = joblib.load("scaler.pkl")
-
 app = FastAPI(title="Fraud Detection API")
 
-# ── INPUT SCHEMA ──────────────────────────────────
 class Transaction(BaseModel):
     Time:  float
     V1:    float
@@ -56,12 +52,10 @@ class Transaction(BaseModel):
     V28:   float
     Amount: float
 
-# 3. a /health endpoint — standard for APIs
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# ── ROUTES ────────────────────────────────────────
 @app.get("/")
 def root():
     return {"message": "Fraud Detection API is running"}
@@ -69,22 +63,18 @@ def root():
 @app.post("/predict")
 def predict(transaction: Transaction):
     try:
-        # attempt everything in here
-        # if ANY line fails, jump to except
-        # build dataframe from input
         data = pd.DataFrame([transaction.model_dump()])
 
-        # scale Time and Amount (same scaler from training)
+        # same scaler fitted on training data — never refit here
         data[["Time", "Amount"]] = scaler.transform(data[["Time", "Amount"]])
 
-        # predict
         prediction  = model.predict(data)[0]
         probability = model.predict_proba(data)[0][1]
 
         record_id = log_prediction(
-                input_data=transaction.model_dump(),
-                predicted_risk=float(probability),
-                model_used="rf",
+            input_data=transaction.model_dump(),
+            predicted_risk=float(probability),
+            model_used="rf",
         )
 
         return {
@@ -94,15 +84,12 @@ def predict(transaction: Transaction):
             "risk":        "HIGH" if probability > 0.7 else "MEDIUM" if probability > 0.3 else "LOW"
         }
 
-    except Exception as e:        # e = the error that occurred
-            raise HTTPException(
-        status_code=500,          # HTTP code for "server error"
-        detail=str(e)             # what actually went wrong
-    )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
-
-
-# new route — report if fraud actually happened
 @app.post("/report/{record_id}")
 def report(record_id: str, occurred: bool):
     result = report_outcome(record_id, occurred)
@@ -114,18 +101,15 @@ def report(record_id: str, occurred: bool):
 
     return {"message": "Outcome recorded"}
 
-# new route — check overall accuracy
 @app.get("/accuracy")
 def accuracy():
     result = check_accuracy()
-    logging.info(f"Accuracy checked - Brier score: {result['brier_score']}")
+    logger.info(f"Accuracy checked - Brier score: {result['brier_score']}")
     return result
 
-
-# new route — check if model is getting worse
 @app.get("/drift")
 def drift():
     result = check_for_drift()
     if result["drift_detected"]:
-        logging.warning(f"DRIFT DETECTED - {result['percent_change']}% change")
+        logger.warning(f"DRIFT DETECTED - {result['percent_change']}% change")
     return result
