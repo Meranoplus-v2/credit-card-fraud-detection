@@ -2,8 +2,7 @@ import pandas as pd
 import requests
 import random
 
-# load dataset
-df = pd.read_csv("creditcard.csv")  # make sure path is correct
+df = pd.read_csv("creditcard.csv")  
 
 BASE_URL = "http://localhost:8000"
 
@@ -11,7 +10,7 @@ BASE_URL = "http://localhost:8000"
 fraud_samples = df[df['Class'] == 1].sample(10).drop('Class', axis=1).to_dict(orient='records')
 legit_samples = df[df['Class'] == 0].sample(10).drop('Class', axis=1).to_dict(orient='records')
 
-for i in range(500):
+for i in range(500): 
     is_fraud = random.random() < 0.2
     sample = random.choice(fraud_samples) if is_fraud else random.choice(legit_samples)
 
